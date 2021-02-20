@@ -1,0 +1,6 @@
+*.*
+!*.git*
+!*.eprime
+!*.param
+!*.md
+!LICENSE

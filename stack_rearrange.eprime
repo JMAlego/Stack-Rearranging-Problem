@@ -1,0 +1,130 @@
+$ The Stack Rearranging Problem
+$ With NOOP, SWAP, DROP, DUP, ROT3AC, ROT3CW, and N registers.
+$ Each operation has customisable cost and cost is minimised.
+$
+$ If using SavileRow the SAT solver tends to work best.
+
+language ESSENCE' 1.0
+
+$ What is the size of the stack we have to rearrange?
+given stackSize : int(1..)
+letting STACK_SIZE be int(1..stackSize)
+
+$ What are the values on the stack out of?
+$ These likely represent abstract variables as actual values might match but be
+$ merely a "collision" of two variables with the same value.
+given maxValue : int(1..)
+letting VALUE be int(0..maxValue)
+
+$ What is the maximum number of steps we can take?
+given maxIterations : int(1..)
+letting ITERATION be int(1..maxIterations)
+
+$ The max number of states is the number of steps + 1
+letting STATES be int(1..maxIterations+1)
+
+$ How many registers do we have?
+given regCount : int(0..)
+letting REG be int(1..regCount)
+
+$ How many base instructions do we have?
+letting baseOp be 5
+$ We add two new instructions per register for pop to and push from
+letting OPP be int(0..baseOp+(2*regCount))
+
+$ What does each action cost? The first item is the cost of NOOP so should likely be zero
+given operationCost : matrix indexed by [int(1..baseOp+(2*regCount)+1)] of int(0..)
+
+$ What is our initial stack state?
+given initialStack : matrix indexed by [STACK_SIZE] of VALUE
+
+$ What is our target stack state?
+given targetStack : matrix indexed by [STACK_SIZE] of VALUE
+
+$ We need to find the sequence of operations to perform to rearrange the stack
+find operations : matrix indexed by [ITERATION] of OPP
+
+$ We will go through intermediate stack states
+find state      : matrix indexed by [STATES, STACK_SIZE] of VALUE
+
+$ And intermediate register states
+find regState   : matrix indexed by [STATES,        REG] of VALUE
+
+$ We can solve simply as fast as possible
+$ maximising sum([state[i,x] = targetStack[x] | x : STACK_SIZE, i : STATES])
+
+$ Or we can minimise the cost of our operations
+minimising sum([operationCost[operations[x] + 1] | x : ITERATION])
+
+such that
+
+$ Initially the stack is in the initial state and the registers are all empty
+and([state[1,x] = initialStack[x] | x : STACK_SIZE]),
+and([regState[1,x] = 0 | x : REG]),
+
+$ In the final state the stack is arranged correctly (though it might have been
+$ before this also)
+and([state[maxIterations+1,x] = targetStack[x] | x : STACK_SIZE]),
+
+$ NOOPs should be pushed to the end of the operations sequence
+forAll x, y : ITERATION.
+  (x < y /\ operations[x] = 0) => (operations[y] = 0),
+
+$ There's no point storing the same value twice in registers
+forAll iter : ITERATION .
+  forAll x, y : REG.
+    (y>x /\ regState[iter,x] != 0) => (regState[iter,x] != regState[iter,y]),
+
+$ If state x is the target stack state x + 1 is also
+forAll iter : ITERATION .
+  and([state[iter,x] = targetStack[x] | x : STACK_SIZE]) => and([state[iter,x] = state[iter+1,x] | x : STACK_SIZE]),
+
+$ NOOP does nothing to the stack
+forAll iter : ITERATION .
+  (operations[iter] = 0) => and([state[iter,x] = state[iter+1,x] | x : STACK_SIZE]),
+
+$ SWAP swaps the top two items of the stack
+forAll iter : ITERATION .
+  (operations[iter] = 1) => and([( (x = 1) => (state[iter, 2] = state[iter+1, 1]) ) /\
+                                 ( (x = 2) => (state[iter, 1] = state[iter+1, 2]) ) /\
+                                 ( (x > 2) => (state[iter, x] = state[iter+1, x]) ) | x : STACK_SIZE]),
+
+$ DROP removes the top of stack
+forAll iter : ITERATION .
+  (operations[iter] = 2) => and([( (x = stackSize) => (state[iter+1, x] = 0               ) ) /\
+                                 ( (x < stackSize) => (state[iter+1, x] = state[iter, x+1]) ) | x : STACK_SIZE]),
+
+$ DUP duplicates the top of stack
+forAll iter : ITERATION .
+  (operations[iter] = 3) => and([( (x = 1) => (state[iter+1, x] = state[iter, x  ]) ) /\
+                                 ( (x > 1) => (state[iter+1, x] = state[iter, x-1]) ) | x : STACK_SIZE]),
+
+$ ROT3CW rotates the top three items "clockwise"
+forAll iter : ITERATION .
+  (operations[iter] = 4) => and([( (x = 1) => (state[iter, 1] = state[iter+1, 2]) ) /\
+                                 ( (x = 2) => (state[iter, 2] = state[iter+1, 3]) ) /\
+                                 ( (x = 3) => (state[iter, 3] = state[iter+1, 1]) ) /\
+                                 ( (x > 3) => (state[iter, x  ] = state[iter+1, x]) ) | x : STACK_SIZE]),
+
+$ ROT3AC rotates the top three items "anticlockwise"
+forAll iter : ITERATION .
+  (operations[iter] = 5) => and([( (x = 1) => (state[iter, 1] = state[iter+1, 3]) ) /\
+                                 ( (x = 2) => (state[iter, 2] = state[iter+1, 1]) ) /\
+                                 ( (x = 3) => (state[iter, 3] = state[iter+1, 2]) ) /\
+                                 ( (x > 3) => (state[iter, x  ] = state[iter+1, x]) ) | x : STACK_SIZE]),
+
+$ Register values do not change for the previously listed instructions
+forAll iter : ITERATION .
+  ((operations[iter] < (baseOp + 1)) \/ (((operations[iter]-baseOp) % 2) = 1)) => and([regState[iter,x] = regState[iter+1,x] | x : REG]),
+
+$ POP pops the top of stack in to a register
+forAll iter : ITERATION .
+  ((operations[iter] > baseOp) /\ (((operations[iter]-baseOp) % 2) = 0)) => ( and([( ( x  = stackSize )                          => ( state[iter+1, x]   = 0                ) ) /\
+                                                                                   ( ( x  < stackSize )                          => ( state[iter+1, x]   = state[iter, x+1] ) ) | x : STACK_SIZE]) /\
+                                                                              and([( ( r  = ( ( operations[iter]-baseOp) / 2 ) ) => ( regState[iter+1,r] = state[iter,1   ] ) ) /\
+                                                                                   ( ( r != ( ( operations[iter]-baseOp) / 2 ) ) => ( regState[iter+1,r] = regState[iter,r] ) ) | r : REG]) ),
+
+$ PUSH pushes a register onto the top of stack
+forAll iter : ITERATION .
+  ((operations[iter] > baseOp) /\ (((operations[iter]-baseOp) % 2) = 1)) => and([( (x = 1) => ( state[iter+1, x] = regState[iter,( ( operations[iter]-baseOp+1 ) / 2 ) ]) ) /\
+                                                                                 ( (x > 1) => ( state[iter+1, x] =    state[iter,    x-1                               ]) ) | x : STACK_SIZE])

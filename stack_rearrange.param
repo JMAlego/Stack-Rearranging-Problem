@@ -1,0 +1,7 @@
+letting stackSize be 8
+letting maxValue be 256
+letting maxIterations be 16
+letting regCount be 1
+letting operationCost be [0,1,1,1,1,1,2,2]
+letting initialStack be [1,2,3,0,0,0,0,0]
+letting targetStack be  [1,2,2,1,2,2,3,1]
