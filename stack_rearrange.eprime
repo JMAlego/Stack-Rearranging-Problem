@@ -66,6 +66,15 @@ $ In the final state the stack is arranged correctly (though it might have been
 $ before this also)
 and([state[maxIterations+1,x] = targetStack[x] | x : STACK_SIZE]),
 
+$ Our state must never be exactly the same as a previous state, if we were to
+$ reach the same state twice it would imply that all intermediary states were
+$ pointless. We must take care to also consider register states though as two
+$ stack states may have different register states and therefore not actually
+$ be the same state.
+forAll x, y : ITERATION.
+  (x < y /\ or([state[y,z] != targetStack[z] | z : STACK_SIZE])) => ( or([   state[y,z] !=    state[x,z] | z : STACK_SIZE])  \/
+                                                                      or([regState[y,z] != regState[x,z] | z : STACK_SIZE]) ),
+
 $ NOOPs should be pushed to the end of the operations sequence
 forAll x, y : ITERATION.
   (x < y /\ operations[x] = 0) => (operations[y] = 0),
