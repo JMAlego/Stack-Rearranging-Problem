@@ -1,6 +1,7 @@
 # Stack Rearranging Problem
 
-An optimising stack rearrangement solver using essence prime.
+A representation of the stack rearrangement problem in Essence Prime, with
+minimisation of operation cost.
 
 Can be run using the [Savile Row](https://savilerow.cs.st-andrews.ac.uk/)
 constraint modelling assistant.
